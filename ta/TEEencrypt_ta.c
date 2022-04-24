@@ -27,8 +27,11 @@
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
-
+#include <string.h>
 #include <TEEencrypt_ta.h>
+
+int root_key=17;
+int random_key;
 
 /*
  * Called when the instance of the TA is created. This is the first call in
@@ -94,45 +97,134 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	IMSG("Goodbye!\n");
 }
 
-static TEE_Result enc_value(uint32_t param_types,
-	TEE_Param params[4])
+static TEE_Result enc_value(uint32_t param_types, TEE_Param params[4])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
+	DMSG("ENC_VALUE");
 
-	DMSG("has been called");
+	char * in = (char *)params[0].memref.buffer;
+	int in_len = strlen(params[0].memref.buffer);
+	char encrypted[64] = {0,};
 
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
+	DMSG("========================Encryption========================\n");
+	DMSG("Plaintext: %s", in);
+	DMSG(encrypted, in, in_len);
 
-	IMSG("Got value: %u from NW", params[0].value.a);
-	params[0].value.a++;
-	IMSG("Increase value to: %u", params[0].value.a);
+	for(int i=0; i<in_len; i++){
+		if(encrypted[i] >= 'a' && encrypted[i] <= 'z'){
+			encrypted[i] -= 'a';
+			encrypted[i] += random_key;
+			encrypted[i] = encrypted[i] % 26;
+			encrypted[i] += 'a';
+		}
+		else if(encrypted[i] >= 'A' && encrypted[i] <= 'Z'){
+			encrypted[i] -= 'A';
+			encrypted[i] += random_key;
+			encrypted[i] = encrypted[i] % 26;
+			encrypted[i] += 'A';
+		}
+	}
+	DMSG("Ciphertext: %s", encrypted);
+	memcpy(in, encrypted, in_len);
 
 	return TEE_SUCCESS;
 }
 
-static TEE_Result dec_value(uint32_t param_types,
-	TEE_Param params[4])
+static TEE_Result dec_value(uint32_t param_types, TEE_Param params[4])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
+        char * in = (char *)params[0].memref.buffer;
+        int in_len = strlen(params[0].memref.buffer);
+        char decrypted[64] = {0,};
 
-	DMSG("has been called");
+        DMSG("========================Decryption========================\n");
+        DMSG ("Ciphertext :  %s", in);
+        memcpy(decrypted, in, in_len);
 
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
+        for(int i=0; i<in_len-1;i++){
+                if(decrypted[i]>='a' && decrypted[i] <='z'){
+                        decrypted[i] -= 'a';
+                        decrypted[i] -= random_key;
+                        decrypted[i] += 26;
+                        decrypted[i] = decrypted[i] % 26;
+                        decrypted[i] += 'a';
+                }
+                else if (decrypted[i] >= 'A' && decrypted[i] <= 'Z') {
+                        decrypted[i] -= 'A';
+                        decrypted[i] -= random_key;
+                        decrypted[i] += 26;
+                        decrypted[i] = decrypted[i] % 26;
+                        decrypted[i] += 'A';
+                }
+        }
+	decrypted[in_len-1] = '\0';	// NULL
+        DMSG ("Plaintext :  %s", decrypted);
+        memcpy(in, decrypted, in_len);
 
-	IMSG("Got value: %u from NW", params[0].value.a);
-	params[0].value.a--;
-	IMSG("Decrease value to: %u", params[0].value.a);
+        return TEE_SUCCESS;
+}
 
+static TEE_Result get_randomkey(uint32_t param_types, TEE_Param params[4])
+{
+        DMSG("========================Get RandomKey========================\n");
+        TEE_GenerateRandom(&random_key, sizeof(random_key));
+        // 1 <= Random Key <= 25
+        random_key = random_key % 26;
+        while(random_key == 0){
+                TEE_GenerateRandom(&random_key, sizeof(random_key));
+                random_key = random_key % 26;
+        }
+	if(random_key < 0){
+		random_key = -1*random_key;
+	}
+        IMSG("Random Key: %d\n", random_key);
+        return TEE_SUCCESS;
+}
+
+static TEE_Result enc_randomkey(uint32_t param_types, TEE_Param params[4])
+{
+	DMSG("========================RandomKey Encryption========================\n");
+
+	if(random_key >= 'a' && random_key <= 'z'){
+		random_key -= 'a';
+		random_key += root_key;
+		random_key = random_key % 26;
+		random_key += 'a';
+	}
+	else if(random_key >= 'A' && random_key <= 'Z'){
+		random_key -= 'A';
+		random_key += root_key;
+		random_key = random_key % 26;
+		random_key += 'A';
+	}
+	params[1].value.a = (uint32_t)random_key;
 	return TEE_SUCCESS;
 }
+
+static TEE_Result dec_randomkey(uint32_t param_types, TEE_Param params[4])
+{
+	char * in = (char *)params[0].memref.buffer;
+	int in_len = strlen(params[0].memref.buffer);
+	char encrypted[64] = {0,};
+
+	DMSG("========================RandomKey Decryption========================\n");
+	memcpy(encrypted, in, in_len);
+	random_key = encrypted[in_len-1];
+
+	if(random_key >= 'a' && random_key <= 'z'){
+		random_key -= 'a';
+		random_key -= root_key;
+		random_key = random_key % 26;
+		random_key += 'a';
+	}
+	else if(random_key >= 'A' && random_key <= 'Z'){
+		random_key -= 'A';
+		random_key -= root_key;
+		random_key = random_key % 26;
+		random_key += 'A';
+	}
+	IMSG("Decrypted : %d\n", random_key);
+	return TEE_SUCCESS;
+}
+
 /*
  * Called when a TA is invoked. sess_ctx hold that value that was
  * assigned by TA_OpenSessionEntryPoint(). The rest of the paramters
@@ -143,14 +235,19 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 			uint32_t param_types, TEE_Param params[4])
 {
 	(void)&sess_ctx; /* Unused parameter */
+	//root_key = 17;
 
 	switch (cmd_id) {
 	case TA_TEEencrypt_CMD_ENC_VALUE:
 		return enc_value(param_types, params);
 	case TA_TEEencrypt_CMD_DEC_VALUE:
 		return dec_value(param_types, params);
-	case TA_TEEencrypt_CMD_RANDOMKEY_GET:
-		return dec_value(param_types, params);
+	case TA_TEEencrypt_CMD_GET_RANDOMKEY:
+		return get_randomkey(param_types, params);
+	case TA_TEEencrypt_CMD_ENC_RANDOMKEY:
+		return enc_randomkey(param_types, params);
+	case TA_TEEencrypt_CMD_DEC_RANDOMKEY:
+		return dec_randomkey(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
