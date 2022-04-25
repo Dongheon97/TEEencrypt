@@ -16,11 +16,11 @@ int main(int argc, char *argv[])
 	TEEC_Operation op;
 	TEEC_UUID uuid = TA_TEEencrypt_UUID;
 	uint32_t err_origin;
-	char plaintext[64] = {0,};
-	char ciphertext[64] = {0,};
+	char plaintext[1024] = {0,};
+	char ciphertext[1024] = {0,};
 	char encrypted_key[3];
-	int len=64;
-
+	int len=1024;
+	int fp;
 
 	res = TEEC_InitializeContext(NULL, &ctx);
 
@@ -28,51 +28,58 @@ int main(int argc, char *argv[])
 
 	memset(&op, 0, sizeof(op));
 
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT, TEEC_VALUE_INOUT, TEEC_NONE, TEEC_NONE);
+	// Parameters Init
+	//op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INOUT, TEEC_VALUE_INOUT, TEEC_NONE, TEEC_NONE);
 	//op.params[0].tmpref.buffer = plaintext;
 	//op.params[0].tmpref.size = len;
 
 	// Encryption
 	if(strcmp(argv[1], "-e")==0){
-		// Parameters init
+		// Parameters Init
+		op.paramTypes = TEEC_PARAM_TYPES(TECC_MEMREF_TEMP_INOUT, TEEC_VALUE_INOUT, TEEC_NONE, TEEC_NONE);
 		op.params[0].tmpref.buffer = plaintext;
 		op.params[0].tmpref.size = len;
 
 		// Read file
-		//FILE* fpr = fopen(argv[2], "r");
-		//fread(plaintext, sizeof(plaintext), 1, fpr);
-		//fclose(fpr);
+		FILE* fpr = fopen(argv[2], "r");
+		fread(plaintext, sizeof(plaintext), 1, fpr);
+		fclose(fpr);
 
-		fpr = open(argv[2], O_RDONLY);
-		read(fd, plaintext, len);
-		close(fpr);
+		//fp = open(argv[2], O_RDONLY);
+		//read(fp, plaintext, len);
+		//close(fp);
 
+		printf("test: %s", plaintext);
 		// Encrypt
 		printf("========================Encryption========================\n");
 		printf("plaintext: %s\n", plaintext);
+
+		//op.params[0].tmpref.buffer = plaintext;
+		//op.params[0].tmpref.size = len;
 		memcpy(op.params[0].tmpref.buffer, plaintext, len);
 		res = TEEC_InvokeCommand(&sess, TA_TEEencrypt_CMD_GET_RANDOMKEY, &op, &err_origin);
 		res = TEEC_InvokeCommand(&sess, TA_TEEencrypt_CMD_ENC_VALUE, &op, &err_origin);
 		res = TEEC_InvokeCommand(&sess, TA_TEEencrypt_CMD_ENC_RANDOMKEY, &op, &err_origin);
 
 		memcpy(ciphertext, op.params[0].tmpref.buffer, len);
-		printf("ciphertext: %s\n", ciphertext);
-		encrypted_key[0] = op.params[0].value.a;
+		encrypted_key[0] = op.params[1].value.a;
 		encrypted_key[1] = '\0';		// NULL
 		strcat(ciphertext, encrypted_key);	// Concat String
 
 		// Write file
-		//FILE* fpw = fopen("./ciphertext.txt", "w");
-		//fwrite(ciphertext, strlen(ciphertext), 1, fpw);
-		//fclose(fpw);
-		fdw = creat("./ciphertext.txt", 0644);
-		write(fdw, ciphertext, strlen(ciphertext));
-		close(fdw);
+		FILE* fpw = fopen("./ciphertext.txt", "w");
+		fwrite(ciphertext, strlen(ciphertext), 1, fpw);
+		fclose(fpw);
+		printf("ciphertext: %s", ciphertext);
+		//fp = creat("./ciphertext.txt", 0644);
+		//write(fp, ciphertext, strlen(ciphertext));
+		//close(fp);
 	}
 	else if(strcmp(argv[1], "-d")==0){
-		// Parameters init
-		op.params[0].tmpref.buffer = ciphertext;
-		op.params[0].tmpref.size = len;
+		// Parameters Init
+                op.paramTypes = TEEC_PARAM_TYPES(TECC_MEMREF_TEMP_INOUT, TEEC_VALUE_INOUT, TEEC_NONE, T$
+                op.params[0].tmpref.buffer = ciphertext;
+                op.params[0].tmpref.size = len;
 
 		// Read file
 		FILE* fpr = fopen(argv[2], "r");
@@ -80,7 +87,7 @@ int main(int argc, char *argv[])
 		fclose(fpr);
 
 		// Decrypt
-		printf("========================Encryption========================\n");
+		printf("========================Decryption========================\n");
 		res = TEEC_InvokeCommand(&sess, TA_TEEencrypt_CMD_DEC_RANDOMKEY, &op, &err_origin);
 		res = TEEC_InvokeCommand(&sess, TA_TEEencrypt_CMD_DEC_VALUE, &op, &err_origin);
 

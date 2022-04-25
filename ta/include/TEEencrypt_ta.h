@@ -42,4 +42,4 @@
 #define TA_TEEencrypt_CMD_GET_RANDOMKEY		2
 #define TA_TEEencrypt_CMD_ENC_RANDOMKEY		3
 #define TA_TEEencrypt_CMD_DEC_RANDOMKEY		4
-#endif /*TA_HELLO_WORLD_H*/
+#endif /*TA_TEEencrypt_H*/
