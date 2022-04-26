@@ -90,8 +90,6 @@ TEE_Result RSA_encrypt(void *sess_ctx, uint32_t param_types, TEE_Param params[4]
 	uint32_t rsa_alg = TEE_ALG_RSAES_PKCS1_V1_5;
 	struct rsa_session *sess = (struct rsa_session *)sess_ctx;
 
-	//uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT, TEE_PARAM_TYPE_VALUE_INOUT, TEE_PARAM_TYPE_MEMREF_INPUT, TEE_PARAM_TYPE_MEMREF_OUTPUT);
-
 	if(check_params(param_types) != TEE_SUCCESS){
 		DMSG("\n\nBAD_PARAMETERS\n\n");
 		return TEE_ERROR_BAD_PARAMETERS;
@@ -165,14 +163,6 @@ void TA_CloseSessionEntryPoint(void *sess_ctx){
         //DMSG("Session %p: release session", sess_ctx);
         DMSG("\nStruct\n");
 	sess = (struct rsa_session *)sess_ctx;
-        /*if(sess->key_handle != TEE_HANDLE_NULL){
-		DMSG("\nKey Handle ERR\n");
-		TEE_FreeTransientObject(sess->key_handle);
-        }
-	if(sess->op_handle != TEE_HANDLE_NULL){
-		DMSG("\nOP Handle ERR\n");
-		TEE_FreeOperation(sess->op_handle);
-        }*/
 	DMSG("\nsess\n");
 	TEE_Free(sess);
         DMSG("FREE OK");
